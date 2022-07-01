@@ -91,17 +91,26 @@ async function createTrack() {
             points.push(new THREE.Vector3(p.x, intersects[0].point.y, p.y));
         }
     });
-    const ps = points.map((p) => [p.x, p.y, p.z]).flat();
+    // const ps = points.map((p) => [p.x, p.y, p.z]).flat();
 
-    const geometry = new LineGeometry();
-    geometry.setPositions(ps); // [ x1, y1, z1,  x2, y2, z2, ... ] format
-    const material = new LineMaterial({
+    // const geometry = new LineGeometry();
+    // geometry.setPositions(ps); // [ x1, y1, z1,  x2, y2, z2, ... ] format
+    // const material = new LineMaterial({
+    //     color: "#204D98",
+    //     linewidth: 3, // px
+    //     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight), // resolution of the viewport
+    // });
+
+    // const line = new Line2(geometry, material);
+
+    const material = new THREE.LineBasicMaterial({
         color: "#204D98",
-        linewidth: 3, // px
-        resolution: new THREE.Vector2(window.innerWidth, window.innerHeight), // resolution of the viewport
+        linewidth: 3,
     });
 
-    const line = new Line2(geometry, material);
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geometry, material);
+
     return line;
 }
 
