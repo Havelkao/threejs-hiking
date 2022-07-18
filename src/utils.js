@@ -43,3 +43,51 @@ function getUTMzone(lat, lng) {
 
     return Math.floor((lng + 180) / 6) + 1;
 }
+
+export function mapPixelsToMeshSize(mesh, image, point, pgw) {
+    const bbox = mesh.geometry?.boundingBox || 0;
+    const originPixelDelta = {
+        x: Math.abs((pgw.xpos - point.easting) / pgw.xscale),
+        y: Math.abs((pgw.ypos - point.northing) / pgw.yscale),
+    };
+
+    return {
+        x: (originPixelDelta.x / image.width) * mesh.geometry.parameters.width + bbox.min.x,
+        y: (originPixelDelta.y / image.height) * mesh.geometry.parameters.height + bbox.min.y,
+    };
+}
+
+export function parsePgw(text) {
+    const result = text.split("\r\n");
+    return {
+        xscale: result[0],
+        yskew: result[1],
+        xskew: result[2],
+        yscale: result[3],
+        xpos: result[4],
+        ypos: result[5],
+    };
+}
+
+export function getHeightData(img) {
+    var canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    var context = canvas.getContext("2d");
+
+    var size = img.width * img.height;
+    const data = new Float32Array(size);
+    data.fill(0);
+
+    context.drawImage(img, 0, 0);
+    var imgd = context.getImageData(0, 0, img.width, img.height);
+    var pix = imgd.data;
+
+    var j = 0;
+    for (var i = 0, n = pix.length; i < n; i += 4) {
+        var all = pix[i] + pix[i + 1] + pix[i + 2];
+        data[j++] = all;
+    }
+
+    return data;
+}

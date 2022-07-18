@@ -1,14 +1,13 @@
 import * as THREE from "three";
 import "../style.css";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { convertLLtoUTM } from "./utils";
-import { Line2, LineGeometry, LineMaterial } from "three-fatline";
+import { convertLLtoUTM, mapPixelsToMeshSize, parsePgw, getHeightData } from "./utils";
+import { MeshLine, MeshLineMaterial } from "three.meshline";
 
-let renderer, scene, camera, controls, raycaster, pointer;
-let mountain, sphere;
+let renderer, scene, camera, controls;
+let terrain, tracks;
 let container;
 let image;
-let isDragging = false;
 
 async function init() {
     scene = new THREE.Scene();
@@ -21,35 +20,28 @@ async function init() {
     container = document.querySelector("#app");
     container.appendChild(renderer.domElement);
 
-    var light = new THREE.AmbientLight(0x404040);
+    var light = new THREE.AmbientLight("white");
     scene.add(light);
 
     controls = new OrbitControls(camera, renderer.domElement);
 
-    mountain = await createMountain();
-    mountain.updateMatrixWorld();
-    scene.add(mountain);
+    terrain = await createTerrain();
+    terrain.updateMatrixWorld();
+    scene.add(terrain);
 
-    const track = await createTrack();
-    scene.add(track);
-
-    sphere = createSphere();
-    scene.add(sphere);
-
-    raycaster = new THREE.Raycaster();
-    pointer = new THREE.Vector2();
-    container.addEventListener("pointermove", onPointerMove, false);
-
-    controls.target.copy(mountain.position);
-    controls.target.y += 1;
+    tracks = await createTracks();
+    tracks.forEach((track) => {
+        scene.add(track);
+    });
 }
 
-const createMountain = async () => {
+async function createTerrain() {
     const loader = new THREE.TextureLoader();
-    const map = await loader.loadAsync("/assets/pichea.png");
+    const map = await loader.loadAsync("/assets/garda.png");
     image = await map.image;
+    const texture = await loader.loadAsync("/assets/garda_texture.png");
     const height = getHeightData(image);
-    const size = 5;
+    const size = 15;
 
     const geometry = new THREE.PlaneGeometry(size, size, image.width - 1, image.height - 1);
 
@@ -61,122 +53,77 @@ const createMountain = async () => {
 
     const material = new THREE.MeshStandardMaterial({
         side: THREE.DoubleSide,
-        map: map,
+        map: texture,
     });
 
-    const mountain = new THREE.Mesh(geometry, material);
-    mountain.rotation.x = -Math.PI / 2;
-    mountain.position.set(size / 2, -2, size / 2);
+    const terrain = new THREE.Mesh(geometry, material);
+    terrain.rotation.x = -Math.PI / 2;
+    terrain.geometry.computeBoundingBox();
 
-    return mountain;
-};
+    return terrain;
+}
 
-async function createTrack() {
-    const coordsData = await fetch("assets/pichea.json");
-    const coords = await coordsData.json();
-    const pgwData = await fetch("assets/pichea.pgw");
+async function createTracks() {
+    const pgwData = await fetch("assets/garda.pgw");
     const pgwText = await pgwData.text();
     const pgw = parsePgw(pgwText);
+    const hikesData = await fetch("assets/italy.json");
+    const hikes = await hikesData.json();
+    const result = hikes.data.map((hike) => createTrack(hike[8]));
 
-    const utm = coords.map((c) => convertLLtoUTM(c.latitude, c.longitude));
-    const pointMap = utm.map((point) => mapPixelsToMeshSize(mountain, image, point, pgw));
+    function createTrack(coords) {
+        const utm = coords.map((c) => {
+            return { ...convertLLtoUTM(c.latitude, c.longitude), elevation: c.elevation };
+        });
+        const pointMap = utm.map((point) => {
+            return { ...mapPixelsToMeshSize(terrain, image, point, pgw), elevation: point.elevation, ll: point };
+        });
 
-    const r = new THREE.Raycaster();
-    const points = [];
-    pointMap.forEach((p) => {
-        r.set(new THREE.Vector3(p.x, -3, p.y), new THREE.Vector3(0, 1, 0));
+        const yOffset = 0.02;
+        const points = [];
+        pointMap.forEach((p) => {
+            let v = getYCoordinate(terrain.geometry, new THREE.Vector3(p.x, 0, p.y));
+            points.push(new THREE.Vector3(p.x, v.y + yOffset, p.y));
+            // v.y = v.y + yOffset;
+            // points.push(v);
+        });
 
-        const intersects = r.intersectObject(mountain);
-        if (intersects.length > 0) {
-            points.push(new THREE.Vector3(p.x, intersects[0].point.y, p.y));
-        }
-    });
-    // const ps = points.map((p) => [p.x, p.y, p.z]).flat();
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new MeshLineMaterial({
+            lineWidth: 0.04,
+            color: "#204D98",
+        });
+        const line = new MeshLine();
+        line.setGeometry(geometry);
+        const mesh = new THREE.Mesh(line.geometry, material);
 
-    // const geometry = new LineGeometry();
-    // geometry.setPositions(ps); // [ x1, y1, z1,  x2, y2, z2, ... ] format
-    // const material = new LineMaterial({
-    //     color: "#204D98",
-    //     linewidth: 3, // px
-    //     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight), // resolution of the viewport
-    // });
-
-    // const line = new Line2(geometry, material);
-
-    const material = new THREE.LineBasicMaterial({
-        color: "#204D98",
-        linewidth: 3,
-    });
-
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const line = new THREE.Line(geometry, material);
-
-    return line;
-}
-
-function mapPixelsToMeshSize(mesh, image, point, pgw) {
-    const originPixelDelta = {
-        x: Math.abs((pgw.xpos - point.easting) / pgw.xscale),
-        y: Math.abs((pgw.ypos - point.northing) / pgw.yscale),
-    };
-
-    return {
-        x: (originPixelDelta.x / image.width) * mesh.geometry.parameters.width,
-        y: (originPixelDelta.y / image.height) * mesh.geometry.parameters.height,
-    };
-}
-
-function parsePgw(text) {
-    const result = text.split("\r\n");
-    return {
-        xscale: result[0],
-        yskew: result[1],
-        xskew: result[2],
-        yscale: result[3],
-        xpos: result[4],
-        ypos: result[5],
-    };
-}
-
-function getHeightData(img) {
-    var canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    var context = canvas.getContext("2d");
-
-    var size = img.width * img.height;
-    const data = new Float32Array(size);
-    data.fill(0);
-
-    context.drawImage(img, 0, 0);
-    var imgd = context.getImageData(0, 0, img.width, img.height);
-    var pix = imgd.data;
-
-    var j = 0;
-    for (var i = 0, n = pix.length; i < n; i += 4) {
-        var all = pix[i] + pix[i + 1] + pix[i + 2];
-        data[j++] = all;
+        return mesh;
     }
 
-    return data;
+    return result;
 }
 
-function createSphere() {
-    const geometry = new THREE.SphereGeometry(0.006, 16, 8);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
-    const sphere = new THREE.Mesh(geometry, material);
-    return sphere;
+function getIndexFrom2DCoordinates(geometry, point) {
+    const bbox = geometry.boundingBox;
+    const { widthSegments, heightSegments } = geometry.parameters;
+    let normalizedX = (point.x - bbox.min.x) / (bbox.max.x - bbox.min.x);
+    let normalizedY = (point.z - bbox.min.y) / (bbox.max.y - bbox.min.y);
+    const column = parseInt(normalizedX * widthSegments);
+    const row = parseInt(normalizedY * heightSegments);
+    let index = (widthSegments + 1) * (row - 1) + column;
+
+    return parseInt(index);
 }
 
-function onPointerMove(event) {
-    pointer.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-    pointer.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(mountain);
+function getYCoordinate(geometry, point) {
+    const index = getIndexFrom2DCoordinates(geometry, point);
+    const vector = new THREE.Vector3();
+    vector.fromBufferAttribute(geometry.attributes.position, index);
+    const axis = new THREE.Vector3(1, 0, 0);
+    const angle = -Math.PI / 2;
+    vector.applyAxisAngle(axis, angle);
 
-    if (intersects.length > 0 && !isDragging) {
-        sphere.position.copy(intersects[0].point);
-    }
+    return vector;
 }
 
 window.addEventListener(
@@ -188,14 +135,6 @@ window.addEventListener(
     },
     false
 );
-
-window.addEventListener("pointerdown", () => {
-    isDragging = true;
-});
-
-window.addEventListener("pointerup", () => {
-    isDragging = false;
-});
 
 function animate() {
     requestAnimationFrame(animate);
