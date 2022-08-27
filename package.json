@@ -12,11 +12,17 @@
     "vite": "^2.9.12"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.1.2",
     "@types/proj4": "^2.5.2",
+    "array-smooth": "^1.0.0",
+    "d3": "^7.6.1",
     "geotiff": "^2.0.5",
+    "gsap": "^3.11.0",
+    "lighterhtml": "^4.2.0",
     "proj4": "^2.8.0",
     "proj4js": "^10.0.0",
     "three": "^0.141.0",
-    "three.meshline": "^1.4.0"
+    "three.meshline": "^1.4.0",
+    "uhtml": "^3.0.1"
   }
 }

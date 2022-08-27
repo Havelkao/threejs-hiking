@@ -23,7 +23,6 @@ class AssetLoader {
         this.texture = await loader.loadAsync("/assets/garda_texture.png");
         const DEM = await loader.loadAsync("/assets/garda.png");
         this.DEMImage = await DEM.image;
-
         this.imagesLoaded = true;
     }
 
@@ -31,11 +30,45 @@ class AssetLoader {
         const pgwData = await fetch("assets/garda.pgw");
         const pgwText = await pgwData.text();
         this.pgw = parsePgw(pgwText);
-        const hikesData = await fetch("assets/italy.json");
-        this.hikes = await hikesData.json();
-
         this.terrainDataLoaded = true;
     }
+}
+
+class Model {
+    constructor() {
+        if (Model._instance) {
+            return Model._instance;
+        }
+        Model._instance = this;
+
+        this.color = {
+            default: 0x204d98,
+            highlight: 0xff0000,
+        };
+    }
+
+    async init() {
+        if (this.data) return;
+
+        const model = await fetch("assets/italy.json");
+        this.data = await model.json();
+
+        console.log(this);
+    }
+}
+
+async function getAsync(type) {
+    let instance;
+    switch (type) {
+        case "model":
+            instance = new Model();
+            break;
+        case "assets":
+            instance = new AssetLoader();
+            break;
+    }
+    await instance.init();
+    return instance;
 }
 
 function parsePgw(text) {
@@ -50,10 +83,4 @@ function parsePgw(text) {
     };
 }
 
-async function getAssets() {
-    const assets = new AssetLoader();
-    await assets.init();
-    return assets;
-}
-
-export { getAssets };
+export { getAsync };

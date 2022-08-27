@@ -1,9 +1,7 @@
 import { PlaneGeometry, MeshStandardMaterial, Mesh, DoubleSide } from "three";
 import { makeNormalizer } from "../../utils";
-import { getAssets } from "../systems/AssetLoader";
 
-async function createTerrain(width, height) {
-    const assets = await getAssets();
+function createTerrain(width, height, assets) {
     const elevation = getElevationFromDEM(assets.DEMImage);
 
     const geometry = new PlaneGeometry(width, height, assets.DEMImage.width - 1, assets.DEMImage.height - 1);

@@ -1,12 +1,14 @@
 import { MeshLine, MeshLineMaterial } from "three.meshline";
 import { BufferGeometry, Mesh, Vector3, Vector2 } from "three";
-import { getAssets } from "../systems/AssetLoader";
 import { convertLLtoUTM } from "../../utils/gis.js";
 import { makeNormalizer } from "../../utils";
 
-async function createTracks(terrain) {
-    const assets = await getAssets();
-    const result = assets.hikes.data.map((hike) => createTrack(hike[8]));
+function createTracks(terrain, assets, model) {
+    const result = model.data.map((hike) => {
+        let mesh = createTrack(hike.coordinates);
+        hike.mesh = mesh;
+        return mesh;
+    });
 
     function createTrack(coords) {
         const utm = coords.map((c) => {
@@ -20,13 +22,13 @@ async function createTracks(terrain) {
             };
         });
 
-        const Y_OFFSET = 0.025;
+        const Y_OFFSET = 0.02;
         const points = [];
         pointMap.forEach((p) => {
             let v = getYCoordinate(terrain.geometry, new Vector3(p.x, 0, p.y));
-            // points.push(new THREE.Vector3(p.x, v.y + Y_OFFSET, p.y));
-            v.y = v.y + Y_OFFSET;
-            points.push(v);
+            points.push(new Vector3((p.x + v.x) / 2, v.y + Y_OFFSET, (p.y + v.z) / 2));
+            // v.y = v.y + Y_OFFSET;
+            // points.push(v);
         });
 
         const geometry = new BufferGeometry().setFromPoints(points);
