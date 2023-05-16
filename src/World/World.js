@@ -24,10 +24,11 @@ class World {
         container.append(renderer.domElement);
 
         this.controls = createControls(this.camera, renderer.domElement, false);
-        // loop.updatables.push(this.controls);
-        this.controls.addEventListener("change", () => {
-            this.render();
-        });
+        loop.updatables.push(this.controls);
+        // update camera on demand
+        // this.controls.addEventListener("change", () => {
+        //     this.render();
+        // });
 
         const light = createLight();
         scene.add(light);
